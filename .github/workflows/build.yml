@@ -1,22 +1,91 @@
-name: Build APK
+name: 🚀 Build BonkAI APK (Mega Imba Edition)
+
 on:
   workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Тип сборки'
+        required: true
+        default: 'debug'
+        type: choice
+        options:
+          - debug
+          - release
+
 jobs:
-  build:
+  assemble:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Set up JDK 17
+      - name: 📥 Чекаут кода
+        uses: actions/checkout@v4
+
+      - name: ☕ Установка JDK 17
         uses: actions/setup-java@v3
         with:
           java-version: '17'
           distribution: 'temurin'
-      - name: Setup Gradle
+
+      - name: 📁 Создаём local.properties
+        run: echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+
+      - name: 🗜️ Кеширование Gradle
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: 🛠️ Настройка Gradle
         uses: gradle/gradle-build-action@v2
-      - name: Build debug APK
-        run: gradle assembleDebug
-      - name: Upload APK
+        with:
+          gradle-version: 8.4
+
+      - name: 🔍 Вывод списка файлов
+        run: find . -type f | sort
+
+      - name: 🧪 Сборка Debug APK
+        if: ${{ github.event.inputs.build_type == 'debug' || github.event.inputs.build_type == '' }}
+        run: gradle assembleDebug --stacktrace
+
+      - name: 🧪 Сборка Release APK
+        if: ${{ github.event.inputs.build_type == 'release' }}
+        run: gradle assembleRelease --stacktrace
+
+      - name: 📦 Проверка Debug APK
+        if: ${{ github.event.inputs.build_type == 'debug' || github.event.inputs.build_type == '' }}
+        run: |
+          if [ -f app/build/outputs/apk/debug/app-debug.apk ]; then
+            echo "✅ Debug APK найден"
+            ls -lh app/build/outputs/apk/debug/app-debug.apk
+          else
+            echo "❌ Debug APK не найден"
+            exit 1
+          fi
+
+      - name: 📦 Проверка Release APK
+        if: ${{ github.event.inputs.build_type == 'release' }}
+        run: |
+          if [ -f app/build/outputs/apk/release/app-release-unsigned.apk ]; then
+            echo "✅ Release APK найден"
+            ls -lh app/build/outputs/apk/release/app-release-unsigned.apk
+          else
+            echo "❌ Release APK не найден"
+            exit 1
+          fi
+
+      - name: ⬆️ Загрузка Debug артефакта
+        if: ${{ github.event.inputs.build_type == 'debug' || github.event.inputs.build_type == '' }}
         uses: actions/upload-artifact@v4
         with:
-          name: bonkai-apk
-          path: app/build/outputs/apk/debug/app-debug.apkp
+          name: bonkai-debug
+          path: app/build/outputs/apk/debug/app-debug.apk
+
+      - name: ⬆️ Загрузка Release артефакта
+        if: ${{ github.event.inputs.build_type == 'release' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: bonkai-release
+          path: app/build/outputs/apk/release/app-release-unsigned.apk
